@@ -18,9 +18,11 @@ Ovaj repozitorij sadrži izvorni kod, dokumentaciju i alate za autonomnog robota
 
 *   **Napredna Kinematika:**
     *   **PID Navigacija:** Precizno praćenje linije i žiro-stabilizirana rotacija.
-    *   **6-DOF Manipulator:** Robotska ruka s inverznom/forward kinematikom za manipulaciju predmetima (boce, limenke) uz "Soft-Start" tehnologiju.
+    *   **6-DOF Manipulator:** Robotska ruka u **Eye-in-Hand** konfiguraciji (Nicla Vision na gripperu) za preciznu manipulaciju i inspekciju. "Soft-Start" tehnologija za glatke pokrete.
 *   **Mission Control Dashboard:**
-    *   Python aplikacija (CustomTkinter) s 4 modula: Nadzor, Podešavanje, Planer Misije, Učenje.
+    *   Python aplikacija (`dashboard_v2.py`) s BLE komunikacijom.
+    *   **[Pročitaj Detaljne Upute (MissionControl.md)](MissionControl.md)** - Opis svih tabova i funkcionalnosti.
+    *   Moduli: Nadzor, Podešavanje, Planer Misije, Učenje.
     *   **"Teach-in" Mod:** Ručno vođenje robota i snimanje ključnih točaka (Keyframes) za autonomnu reprodukciju.
 *   **IoT & Telemetrija:**
     *   Dvosmjerna JSON komunikacija putem Bluetootha (BLE/Classic).
@@ -60,8 +62,9 @@ Glavna petlja koja orkestrira podsustave.
 *   `HardwareMap.h`: Centralizirana definicija hardvera.
 *   `Enkoderi.h` / `IMU.h`: Drajveri za senzore.
 
-### 2. PC Dashboard (`dashboard.py`)
-Moderno GUI sučelje napisano u Pythonu.
+### 2. PC Dashboard (`dashboard_v2.py`)
+Moderno GUI sučelje napisano u Pythonu (CustomTkinter) s **BLE** podrškom.
+*   **[MissionControl.md](MissionControl.md)** sadrži detaljan opis sučelja.
 *   **Tab 1 (Nadzor):** Kompas, kamera uživo, telemetrija.
 *   **Tab 2 (Podešavanje):** Live tuning PID varijabli i kalibracija senzora.
 *   **Tab 3 (Misija):** Sekvencer za slaganje autonomnih zadataka (blokovsko programiranje).
@@ -111,6 +114,7 @@ Detaljna objašnjenja za edukaciju i razvoj:
 
 *   **[Hardver i Pinovi (Docs_Hardver.md)](Docs_Hardver.md)** - Popis svih senzora, motora i spojeva.
 *   **[Manipulator i Kinematika (Docs_Manipulator.md)](Docs_Manipulator.md)** - Kako radi ruka, kutovi i sekvence.
+*   **[Mission Control (MissionControl.md)](MissionControl.md)** - Upute za korištenje Dashboard aplikacije.
 *   **[Kretanje i Senzori (Docs_Kretanje.md)](Docs_Kretanje.md)** - PID kontrola, Lane Assist i IMU detekcija prepreka.
 *   **[Misija i Strategija (Docs_Misija.md)](Docs_Misija.md)** - Objašnjenje "Grand Slam" strategije i Smart Start sekvence.
 
