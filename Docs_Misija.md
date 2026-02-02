@@ -51,4 +51,9 @@ Kako bi se osigurala maksimalna preciznost, robot na početku izvodi kalibracijs
 ```
 
 ## 4. Pokretanje Misije
-Misija se pokreće slanjem bilo kojeg znaka putem Bluetooth terminala ili Serial Monitora nakon što robot ispiše "WSC 2026 Robot Spreman".
+Misija se može pokrenuti na dva načina:
+1.  **Ble/Serial Monitor:** Slanjem bilo kojeg znaka (ili "MODE:AUTO").
+2.  **Dashboard:**
+    *   Učitati misiju iz `misija.txt` u tabu "Autonomno".
+    *   Pritisnuti "POKRENI MISIJU".
+    *   Dashboard šalje `MODE:AUTO` i zatim iterira kroz listu naredbi (MOVE, ARM, WAIT) šaljući ih robotu jednu po jednu.

@@ -45,13 +45,12 @@ Upravljan putem **PCA9685** 16-kanalnog PWM drivera (I2C Adresa: 0x40).
 
 | Kanal | Zglob | Opis |
 | :--- | :--- | :--- |
-| 0 | Baza | Rotacija lijevo-desno |
-| 1 | Rame | Dizanje/spuštanje donjeg dijela |
-| 2 | Lakat | Dizanje/spuštanje gornjeg dijela |
-| 3 | Podlaktica | Rotacija zgloba |
-| 4 | Zglob Rot | Rotacija šake |
-| 5 | Zglob Nagib | Nagib šake |
-| 6 | Hvataljka | Otvaranje/zatvaranje |
+| 0 | Baza | Rotacija lijevo-desno (0-180°) |
+| 1 | Rame | Dizanje/spuštanje donjeg dijela (0-180°) |
+| 2 | Lakat | Dizanje/spuštanje gornjeg dijela (0-180°) |
+| 3 | Zglob | Rotacija zgloba (0-180°) |
+| 4 | Rot | Rotacija šake (0-180°) |
+| 5 | Hvat | Otvaranje/zatvaranje (0-180°) |
 
 ## 4. Komunikacija
 *   **Serial2 (16/17):** Bluetooth modul (HC-02) za vezu s PC Dashboardom.
