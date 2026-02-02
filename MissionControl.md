@@ -27,7 +27,7 @@ Prije korištenja bilo kojeg taba, potrebno je uspostaviti vezu s robotom.
 Ovaj tab služi za fino podešavanje parametara robota bez potrebe za recompajliranjem koda.
 
 > [!TIP]
-> ![Tab Kalibracija](/c:/Users/lovro/Documents/Moj%20Python/autonomniBot/slike/tabKalibracija.png)
+> ![Tab Kalibracija](slike/tabKalibracija.png)
 > *(Screenshot taba Kalibracija)*
 
 ### Funkcionalnosti:
@@ -46,7 +46,7 @@ Ovaj tab služi za fino podešavanje parametara robota bez potrebe za recompajli
 Glavni tab za ručnu vožnju i snimanje rute ("Teach & Repeat").
 
 > [!TIP]
-> ![Tab Učenje](/c:/Users/lovro/Documents/Moj%20Python/autonomniBot/slike/tabManualno.png)
+> ![Tab Učenje](slike/tabManualno.png)
 > *(Screenshot taba Učenje)*
 
 ### Kontrole:
@@ -68,7 +68,7 @@ Glavni tab za ručnu vožnju i snimanje rute ("Teach & Repeat").
 Izvršavanje prethodno snimljene misije.
 
 > [!TIP]
-> ![Tab Autonomno](/c:/Users/lovro/Documents/Moj%20Python/autonomniBot/slike/tabAutonomno.png)
+> ![Tab Autonomno](slike/tabAutonomno.png)
 > *(Screenshot taba Autonomno)*
 
 ### Proces:
