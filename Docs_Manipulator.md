@@ -20,6 +20,7 @@ Definirane su u `Manipulator.h`:
 | **Odlaganje D1** | 45° | Lijevi spremnik (Limenka/Boca/Spužva). |
 | **Odlaganje D2** | 90° | Srednji spremnik. |
 | **Odlaganje D3** | 135° | Desni spremnik. |
+| **POZA_VOZNJA** | 90° | Ruka podignuta, lakat na 90°, kamera gleda ispred robota. Ova pozicija je **presudna** za stabilnu navigaciju. |
 
 ## 3. State Machine (Stanja Ruke)
 Ruka radi kao konačni automat (FSM), što omogućuje asinkrono izvršavanje bez blokiranja glavne petlje.

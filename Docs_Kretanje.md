@@ -16,6 +16,9 @@ Sustav aktivno sprječava izlijetanje sa staze koristeći dodatne IR senzore na 
 *   **Logika:** Ovo je "Hard Override". Ako lijevi senzor vidi rub staze, robot **odmah** skreće desno, ignorirajući PID.
 *   Ovo je ključno za brzu vožnju gdje PID možda ne stigne reagirati na oštar zavoj.
 
+> [!WARNING]
+> **Bitno:** Navigacija ovisi o stabilnosti ruke. Ako manipulator nije u `POZA_VOZNJA`, podaci s kamere neće biti validni.
+
 ## 3. Odometrija i Pozicioniranje
 Koristimo enkodere na motorima za mjerenje prijeđenog puta.
 *   `IMPULSA_PO_CM`: Konstanta koja definira koliko impulsa enkodera odgovara 1 cm puta.

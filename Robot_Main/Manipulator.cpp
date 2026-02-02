@@ -84,6 +84,26 @@ void Manipulator::zapocniSekvencu(String sekvenca) {
     trenutnoStanje = STANJE_SEK_PRIPREMA;
 }
 
+void Manipulator::postaviUVozaPoziciju() {
+    // Postavljanje ruke u definiranu POZA_VOZNJA
+    // Koristimo postaviKut metodu koja postavlja CILJEVE.
+    // azuriraj() ce se pobrinuti za Soft-Start tranziciju.
+    postaviKut(KANAL_BAZA, KUT_POZA_VOZNJA_BAZA);
+    postaviKut(KANAL_RAME, KUT_POZA_VOZNJA_RAME);
+    postaviKut(KANAL_LAKAT, KUT_POZA_VOZNJA_LAKAT);
+    postaviKut(KANAL_ZGLOB, KUT_POZA_VOZNJA_ZGLOB);
+    
+    // Ostali zglobovi po potrebi (Rotacija sace, Hvat)
+    // Neka rotacija sake bude ravna (90)
+    postaviKut(KANAL_ROT, 90.0);
+    // Hvat neka ostane kakav je ili ga zatvorimo?
+    // Bolje zatvoriti da ne zapinje.
+    postaviKut(KANAL_HVATALJKA, 90.0); 
+
+    // Resetiraj State Machine da ne ometa
+    trenutnoStanje = STANJE_MIRUJE;
+}
+
 void Manipulator::azuriraj() {
     // --- Soft-Start Logika (Time Based) ---
     // Neka se osvježava svakih 20ms (50Hz) za fluidnost

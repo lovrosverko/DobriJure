@@ -28,7 +28,7 @@ class App(ctk.CTk):
         self.data_lock = threading.Lock()
         self.data = {
             "enc_l": 0, "enc_r": 0, "spd": 0.0, "head": 0.0,
-            "bat": 0.0, "status": "Ready"
+            "bat": 0.0, "status": "Ready", "tof": 0
         }
         
         # --- Misija i Učenje ---
@@ -193,6 +193,13 @@ class App(ctk.CTk):
         self.lbl_ucenje_status = ctk.CTkLabel(info_frame, text="Zadnja točka: Nema", text_color="yellow", font=("Arial", 14))
         self.lbl_ucenje_status.pack(pady=20)
         
+        # Novi gumbi za Eye-in-Hand
+        ctk.CTkButton(info_frame, text="Testiraj Pozu Vožnja", fg_color="purple", 
+                      command=lambda: self.send_json({"cmd": "ruka", "val": "voznja"})).pack(pady=10)
+        
+        self.lbl_tof = ctk.CTkLabel(info_frame, text="TOF Udaljenost: 0 mm", font=("Arial", 16, "bold"))
+        self.lbl_tof.pack(pady=5)
+
         ctk.CTkButton(info_frame, text="Resetiraj Poziciju Robota", command=lambda: self.send_json({"cmd": "reset_pose"})).pack(pady=10)
 
     # ---------------- LOGIKA ----------------
@@ -365,6 +372,11 @@ class App(ctk.CTk):
         self.lbl_head.configure(text=f"SMJER: {h:.1f}°")
         self.lbl_spd.configure(text=f"Brzina: {spd:.2f} m/s")
         self.lbl_enc.configure(text=f"Enc: L:{el} | R:{er}")
+        
+        # Azuriranje TOF-a
+        tof = self.data.get('tof', 0)
+        if hasattr(self, 'lbl_tof'):
+            self.lbl_tof.configure(text=f"TOF Udaljenost: {tof} mm")
         
         self.draw_compass(h)
         self.after(100, self.update_ui_loop)

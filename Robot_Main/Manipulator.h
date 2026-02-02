@@ -25,6 +25,12 @@
 #define KUT_ODLAGANJE_D2   90.0   // Srednji spremnik
 #define KUT_ODLAGANJE_D3   135.0  // Desni spremnik
 
+// Poza za vožnju (Kamera gleda dolje pod 45 stupnjeva)
+#define KUT_POZA_VOZNJA_RAME  135.0
+#define KUT_POZA_VOZNJA_LAKAT 90.0
+#define KUT_POZA_VOZNJA_ZGLOB 135.0 // Kompenzacija za 45 stupnjeva
+#define KUT_POZA_VOZNJA_BAZA  90.0  // Ravno naprijed
+
 // Stanja za State Machine (Hrvatski)
 enum StanjeRuke {
     STANJE_MIRUJE,
@@ -94,6 +100,13 @@ public:
      * @param sekvenca - npr. "krov1", "odlozi_d1"
      */
     void zapocniSekvencu(String sekvenca);
+
+    /**
+     * Postavlja ruku u stabilnu pozu za vožnju.
+     * Kamera gleda ispred robota (45°).
+     * Koristi Soft-Start.
+     */
+    void postaviUVozaPoziciju();
 };
 
 #endif // MANIPULATOR_H

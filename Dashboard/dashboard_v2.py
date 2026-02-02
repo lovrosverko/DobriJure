@@ -2,11 +2,11 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
 import threading
-import socket
-import serial
-import serial.tools.list_ports
+import asyncio
+from bleak import BleakScanner, BleakClient
 import time
 import requests
+import json
 from PIL import Image, ImageTk
 from io import BytesIO
 import os
@@ -14,65 +14,96 @@ import os
 # Configuration
 DEFAULT_IP = "192.168.0.7"
 
+# UUID-ovi za HC-02 (ISSC)
+UART_RX_CHAR_UUID = "49535343-1e4d-4bd9-ba61-23c647249616" # Notify
+UART_TX_CHAR_UUID = "49535343-8841-43f4-a8d4-ecbe34729bb3" # Write
+
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
 class RobotController:
-    def __init__(self):
-        self.ser = None
+    def __init__(self, loop):
+        self.loop = loop
+        self.client = None
         self.connected = False
-        self.lock = threading.Lock()
-        self.running = False
         self.on_telemetry_callback = None
+        self.rx_buffer = ""
 
-    def connect(self, port, baud=115200):
-        try:
-            self.ser = serial.Serial(port, baud, timeout=1)
-            self.connected = True
-            self.running = True
-            threading.Thread(target=self.read_loop, daemon=True).start()
-            return True
-        except Exception as e:
-            print(f"Connection Error: {e}")
+    async def connect_ble(self):
+        print("Skeniram BLE uređaje...")
+        devices = await BleakScanner.discover()
+        target = None
+        for d in devices:
+            if d.name and "HC-02" in d.name:
+                target = d
+                break
+        
+        if not target:
+            print("HC-02 nije pronađen.")
             return False
 
-    def disconnect(self):
-        self.running = False
-        if self.ser:
-            self.ser.close()
+        print(f"Povezivanje na {target.name}...")
+        self.client = BleakClient(target.address)
+        
+        try:
+            await self.client.connect()
+            self.connected = True
+            print("BLE Povezano!")
+            await self.client.start_notify(UART_RX_CHAR_UUID, self.notification_handler)
+            return True
+        except Exception as e:
+            print(f"Greška pri povezivanju: {e}")
             self.connected = False
+            return False
 
-    def send_command(self, cmd):
-        if self.connected and self.ser:
-            with self.lock:
-                try:
-                    self.ser.write((cmd + "\n").encode())
-                    print(f"TX: {cmd}")
-                except Exception as e:
-                    print(f"TX Error: {e}")
+    async def disconnect_ble(self):
+        if self.client:
+            await self.client.disconnect()
+            self.connected = False
+            print("BLE Odspojeno.")
 
-    def read_loop(self):
-        while self.running and self.ser:
-            try:
-                if self.ser.in_waiting:
-                    line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+    def notification_handler(self, sender, data):
+        try:
+            chunk = data.decode('utf-8', errors='ignore')
+            self.rx_buffer += chunk
+            
+            if "\n" in self.rx_buffer:
+                lines = self.rx_buffer.split("\n")
+                
+                for line in lines[:-1]:
+                    line = line.strip()
                     if line.startswith("STATUS:"):
                         # STATUS:cm,pL,pR,armIdx,usF,usB,usL,usR,ind
                         parts = line.split(":")[1].split(",")
                         if len(parts) >= 9:
-                            data = {
+                            data_dict = {
                                 "cm": parts[0], "pL": parts[1], "pR": parts[2],
                                 "arm": parts[3],
                                 "usF": parts[4], "usB": parts[5], "usL": parts[6], "usR": parts[7],
                                 "ind": parts[8]
                             }
                             if self.on_telemetry_callback:
-                                self.on_telemetry_callback(data)
-                    elif line and not line.startswith("DEBUG"): # Filter junk
+                                self.on_telemetry_callback(data_dict)
+                    elif line and not line.startswith("DEBUG"): 
                         print(f"RX: {line}")
+                            
+                self.rx_buffer = lines[-1]
+                
+        except Exception as e:
+            print(f"RX Error: {e}")
+
+    def send_command(self, cmd):
+        if self.connected and self.client:
+             asyncio.run_coroutine_threadsafe(self.write_ble(cmd), self.loop)
+
+    async def write_ble(self, cmd):
+        if self.client and self.connected:
+            try:
+                data = (cmd + "\n").encode('utf-8')
+                await self.client.write_gatt_char(UART_TX_CHAR_UUID, data)
+                print(f"TX: {cmd}")
             except Exception as e:
-                print(f"RX Error: {e}")
-                time.sleep(1)
+                print(f"TX Fail: {e}")
 
 class MJPEGViewer(ctk.CTkLabel):
     def __init__(self, master, url, **kwargs):
@@ -120,19 +151,21 @@ class MJPEGViewer(ctk.CTkLabel):
                     self.configure(text=f"Status: {stream.status_code}")
                     time.sleep(1)
             except Exception as e:
-                print(f"Stream Error: {e}")
-                import traceback
-                traceback.print_exc()
-                self.configure(text=f"Reconnecting... ({e})")
+                # print(f"Stream Error: {e}") # Reduce spam
+                self.configure(text=f"Reconnecting...")
                 time.sleep(1) # Wait before retry
 
 class DashboardApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("WSC 2026 Mission Control")
+        self.title("WSC 2026 Mission Control (BLE Edition)")
         self.geometry("1000x700")
         
-        self.robot = RobotController()
+        # Async Loop setup
+        self.loop = asyncio.new_event_loop()
+        threading.Thread(target=self.start_async_loop, daemon=True).start()
+
+        self.robot = RobotController(self.loop)
         
         # Layout
         self.grid_columnconfigure(1, weight=1)
@@ -148,9 +181,8 @@ class DashboardApp(ctk.CTk):
         # Connection Box
         self.conn_frame = ctk.CTkFrame(self.sidebar)
         self.conn_frame.grid(row=1, column=0, padx=10, pady=10)
-        self.refresh_ports()
         
-        self.btn_connect = ctk.CTkButton(self.conn_frame, text="Connect BLE/UART", command=self.toggle_connection)
+        self.btn_connect = ctk.CTkButton(self.conn_frame, text="Connect BLE (HC-02)", command=self.trigger_connect)
         self.btn_connect.pack(pady=5)
         
         # IP Address Input
@@ -180,7 +212,29 @@ class DashboardApp(ctk.CTk):
 
         # Key bindings for Manual Drive
         self.bind("<KeyPress>", self.on_key_press)
-        
+
+    def start_async_loop(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def trigger_connect(self):
+        if not self.robot.connected:
+            self.btn_connect.configure(text="Connecting...", state="disabled")
+            asyncio.run_coroutine_threadsafe(self.connect_ble_logic(), self.loop)
+        else:
+            asyncio.run_coroutine_threadsafe(self.disconnect_ble_logic(), self.loop)
+            
+    async def connect_ble_logic(self):
+        success = await self.robot.connect_ble()
+        if success:
+            self.btn_connect.configure(text="Disconnect BLE", fg_color="red", state="normal")
+        else:
+            self.btn_connect.configure(text="Connect BLE (HC-02)", fg_color="blue", state="normal")
+            
+    async def disconnect_ble_logic(self):
+        await self.robot.disconnect_ble()
+        self.btn_connect.configure(text="Connect BLE (HC-02)", fg_color="blue", state="normal")
+
     def show_image_popup(self, jpg_data):
         try:
             top = ctk.CTkToplevel(self)
@@ -194,23 +248,6 @@ class DashboardApp(ctk.CTk):
             lbl.pack(expand=True, fill="both")
         except Exception as e:
             print(f"Popup error: {e}")
-
-    def refresh_ports(self):
-        # Simple combo box for ports (Mockup)
-        ports = [p.device for p in serial.tools.list_ports.comports()]
-        self.combo_ports = ctk.CTkComboBox(self.conn_frame, values=ports if ports else ["No Ports"])
-        self.combo_ports.pack(pady=5)
-
-    def toggle_connection(self):
-        if not self.robot.connected:
-            port = self.combo_ports.get()
-            if self.robot.connect(port):
-                self.btn_connect.configure(text="Disconnect", fg_color="red")
-            else:
-                messagebox.showerror("Error", "Could not connect")
-        else:
-            self.robot.disconnect()
-            self.btn_connect.configure(text="Connect", fg_color="blue")
 
     def setup_calibration_tab(self):
         # 3 Columns
@@ -340,8 +377,6 @@ class DashboardApp(ctk.CTk):
         try:
             for l in labels:
                 vals.append(self.lab_vars[l].get())
-            
-            # Construct: SET:TYPE,lmin,lmax,amin,amax,bmin,bmax
             cmd = f"SET:{obj},{','.join(vals)}"
             print(f"Sending Color Config: {cmd}")
             self.robot.send_command(cmd)
@@ -410,12 +445,6 @@ class DashboardApp(ctk.CTk):
         ctk.CTkButton(right_col, text="Spremi Misiju (misija.txt)", command=self.save_mission).pack(pady=5)
 
     def update_telemetry(self, data):
-        # Callback from thread, careful with GUI updates. 
-        # CTK is mostly thread safe but best to use after? 
-        # Actually CTK/Tkinter is NOT thread safe. We must queue.
-        # Quick hack: direct update usually fails or crashes eventually.
-        # Setup 'after' loop in main thread is better.
-        # But let's try direct update protected by try-except for now or use a variable.
         self.latest_telemetry = data
 
     def ui_updater(self):
@@ -472,110 +501,11 @@ class DashboardApp(ctk.CTk):
             self.lbl_snapshot_status.configure(text="Error")
             print(e)
             
-    def show_image_popup(self, jpg_data):
-        # We need to run this in main thread? 
-        # CTK Toplevel
-        pass # To be implemented or handled via queue
-        
     def log_mission_step(self, text):
         self.waypoints_list.configure(state="normal")
         self.waypoints_list.insert("end", text + "\n")
         self.waypoints_list.see("end")
         self.waypoints_list.configure(state="disabled")
-
-    def setup_auto_tab(self):
-        frame = self.tab_auto
-        ctk.CTkButton(frame, text="Učitaj Misiju", command=self.load_mission).pack(pady=10)
-        ctk.CTkButton(frame, text="START MISIJA", fg_color="green", height=50, command=self.start_mission).pack(pady=10)
-        self.log_box = ctk.CTkTextbox(frame, width=500, height=300)
-        self.log_box.pack(pady=10)
-
-    def create_input(self, parent, label):
-        f = ctk.CTkFrame(parent, fg_color="transparent")
-        f.pack(fill="x", padx=10, pady=2)
-        ctk.CTkLabel(f, text=label, width=30).pack(side="left")
-        e = ctk.CTkEntry(f)
-        e.pack(side="right", expand=True, fill="x")
-        return e
-
-    # Logic
-    def start_video_stream(self):
-        ip = self.entry_ip.get()
-        url = f"http://{ip}:8080"
-        self.video_viewer.url = url
-        self.video_viewer.start()
-
-    def save_config(self):
-        # 1. PID
-        kp = self.entry_kp.get()
-        ki = self.entry_ki.get()
-        kd = self.entry_kd.get()
-        self.robot.send_command(f"PID:{kp},{ki},{kd}")
-        time.sleep(0.1)
-        
-        # 2. Motor
-        puls = self.entry_pulses.get()
-        spd = self.entry_speed.get()
-        self.robot.send_command(f"SET_MOTOR:{puls},{spd}")
-        
-
-
-    def save_preset(self):
-        name = self.combo_preset.get()
-        try:
-             idx = self.preset_names.index(name)
-             self.robot.send_command(f"SAVE_PRESET:{idx}")
-        except ValueError:
-             messagebox.showerror("Error", "Unknown Preset Name")
-
-    def load_preset(self):
-        name = self.combo_preset.get()
-        try:
-             idx = self.preset_names.index(name)
-             self.robot.send_command(f"LOAD_PRESET:{idx}")
-        except ValueError:
-             messagebox.showerror("Error", "Unknown Preset Name")
-
-
-
-
-    def start_mission(self):
-        self.robot.send_command("MODE:AUTO")
-
-    def on_key_press(self, event):
-        # Numpad logic
-        if self.tabview.get() != "Učenje (Manual)": return
-        
-        key = event.keysym
-        speed = 100
-        cmd = ""
-        
-        if key == 'KP_Up' or key == '8': cmd = f"MAN:FWD,{speed}"
-        elif key == 'KP_Down' or key == '2': cmd = f"MAN:BCK,{speed}"
-        elif key == 'KP_Left' or key == '4': cmd = f"MAN:LFT,{speed}"
-        elif key == 'KP_Right' or key == '6': cmd = f"MAN:RGT,{speed}"
-        elif key == 'space': 
-            self.waypoints_list.insert("end", f"Waypoint Saved\n")
-            return
-            
-        if cmd: self.robot.send_command(cmd)
-
-    def save_mission(self):
-        try:
-            with open("misija.txt", "w", encoding="utf-8") as f:
-                f.write(self.waypoints_list.get("1.0", "end"))
-                messagebox.showinfo("Saved", "Mission saved to misija.txt")
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not save: {e}")
-
-    def load_mission(self):
-        try:
-            with open("misija.txt", "r", encoding="utf-8") as f:
-                content = f.read()
-                self.log_box.delete("1.0", "end")
-                self.log_box.insert("end", content)
-        except:
-            messagebox.showerror("Error", "No mission file found")
 
     def setup_auto_tab(self):
         frame = self.tab_auto
@@ -594,15 +524,11 @@ class DashboardApp(ctk.CTk):
         ctk.CTkLabel(left_col, text="Kamera Uživo", font=("Arial", 16, "bold")).pack(pady=5)
         
         # MJPEG Viewer
-        # We need the IP. But IP might change? We bind it dynamically or reload?
-        # For now, create it, but URL set on Connect/Update.
         self.stream_viewer = MJPEGViewer(left_col, url=f"http://{DEFAULT_IP}:8080", width=400, height=300)
         self.stream_viewer.pack(pady=5)
         ctk.CTkButton(left_col, text="Osvježi Stream (IP)", command=self.refresh_stream).pack(pady=2)
 
         ctk.CTkLabel(left_col, text="--- Telemetrija ---").pack(pady=10)
-        # Duplicate labels for Auto Tab (or reuse? Tkinter widgets can't be in two places)
-        # We create new labels and update both in ui_updater
         self.lbl_auto_dist = ctk.CTkLabel(left_col, text="Distance: 0.0 cm")
         self.lbl_auto_dist.pack()
         self.lbl_auto_sensors = ctk.CTkLabel(left_col, text="Sensors: -")
@@ -628,9 +554,6 @@ class DashboardApp(ctk.CTk):
     def refresh_stream(self):
          ip = self.entry_ip.get()
          self.stream_viewer.url = f"http://{ip}:8080"
-         self.stream_viewer.running = False # Restart logic? 
-         # MJPEGViewer wrapper resets if URL changes? Need to verify class.
-         # Assuming simple restart:
          self.stream_viewer.stop()
          self.stream_viewer.start()
 
@@ -653,47 +576,38 @@ class DashboardApp(ctk.CTk):
             line = line.strip()
             if not line or line.startswith("---") or line.startswith("#"): continue
             
-            # Highlight current line (Simulated by selecting?)
-            # self.log_box.tag_add("current", ...) - too complex for threading.
             print(f"Executing: {line}")
+            # Use 'after' if we want detailed UI update, but thread safe way often required
+            # For status label, we risk it or queue it. CTK usually handles text config okay from threads.
             self.lbl_auto_status.configure(text=f"Exec: {line}")
             
             parts = line.split(":") 
             cmd_type = parts[0]
             
             if cmd_type == "MOVE":
-                target = int(float(parts[1])) # Handle "50.0"
-                cmd = f"MOVE:{target}" # Robot logic expects MOVE:cm
+                target = int(float(parts[1]))
+                cmd = f"MOVE:{target}" 
                 self.robot.send_command(cmd)
                 
-                # Wait for completion (Telemetry monitoring)
-                # Logic: Wait for cm to resets (0), then wait for cm >= target-tolerance
-                time.sleep(0.5) # Give it time to reset
+                # Wait logic
+                time.sleep(0.5) 
                 start_time = time.time()
                 while self.mission_running:
-                    # Timeout safety
                     if time.time() - start_time > 10: break 
-                    
                     try:
                         curr = float(self.latest_telemetry.get('cm', 0))
-                        # Check if reached (allow 2cm error)
                         if abs(curr) >= abs(target) - 2:
                             break
                     except: pass
                     time.sleep(0.1)
-                
-                # Stop explicitly? MOVE logic stops itself.
-                time.sleep(0.5) # Settle
+                time.sleep(0.5) 
 
             elif cmd_type == "ARM":
-                preset_name = parts[1] # "Uzmi Bocu"
-                # Need to map back to index? Or usage "LOAD_PRESET:idx" in recorder?
-                # Recorder wrote "ARM:Uzmi Bocu". 
-                # We need mapping.
+                preset_name = parts[1]
                 try:
                     idx = self.preset_names.index(preset_name)
                     self.robot.send_command(f"LOAD_PRESET:{idx}")
-                    time.sleep(2.0) # Robot arm movement time
+                    time.sleep(2.0)
                 except:
                     print(f"Unknown Preset: {preset_name}")
             
@@ -703,6 +617,79 @@ class DashboardApp(ctk.CTk):
 
         self.mission_running = False
         self.lbl_auto_status.configure(text="STATUS: DONE", text_color="blue")
+
+    def create_input(self, parent, label):
+        f = ctk.CTkFrame(parent, fg_color="transparent")
+        f.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(f, text=label, width=30).pack(side="left")
+        e = ctk.CTkEntry(f)
+        e.pack(side="right", expand=True, fill="x")
+        return e
+
+    def save_config(self):
+        # 1. PID
+        kp = self.entry_kp.get()
+        ki = self.entry_ki.get()
+        kd = self.entry_kd.get()
+        self.robot.send_command(f"PID:{kp},{ki},{kd}")
+        time.sleep(0.1)
+        
+        # 2. Motor
+        puls = self.entry_pulses.get()
+        spd = self.entry_speed.get()
+        self.robot.send_command(f"SET_MOTOR:{puls},{spd}")
+
+    def save_preset(self):
+        name = self.combo_preset.get()
+        try:
+             idx = self.preset_names.index(name)
+             self.robot.send_command(f"SAVE_PRESET:{idx}")
+        except ValueError:
+             messagebox.showerror("Error", "Unknown Preset Name")
+
+    def load_preset(self):
+        name = self.combo_preset.get()
+        try:
+             idx = self.preset_names.index(name)
+             self.robot.send_command(f"LOAD_PRESET:{idx}")
+        except ValueError:
+             messagebox.showerror("Error", "Unknown Preset Name")
+
+    def on_key_press(self, event):
+        if self.tabview.get() != "Učenje (Manual)": return
+        
+        key = event.keysym
+        speed = 100
+        cmd = ""
+        
+        if key == 'KP_Up' or key == '8': cmd = f"MAN:FWD,{speed}"
+        elif key == 'KP_Down' or key == '2': cmd = f"MAN:BCK,{speed}"
+        elif key == 'KP_Left' or key == '4': cmd = f"MAN:LFT,{speed}"
+        elif key == 'KP_Right' or key == '6': cmd = f"MAN:RGT,{speed}"
+        elif key == 'space': 
+            self.waypoints_list.configure(state="normal")
+            self.waypoints_list.insert("end", f"Waypoint Saved\n")
+            self.waypoints_list.configure(state="disabled")
+            return
+            
+        if cmd: self.robot.send_command(cmd)
+
+    def save_mission(self):
+        try:
+            with open("misija.txt", "w", encoding="utf-8") as f:
+                f.write(self.waypoints_list.get("1.0", "end"))
+                messagebox.showinfo("Saved", "Mission saved to misija.txt")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not save: {e}")
+
+    def load_mission(self):
+        try:
+            with open("misija.txt", "r", encoding="utf-8") as f:
+                content = f.read()
+                self.log_box.delete("1.0", "end")
+                self.log_box.insert("end", content)
+        except:
+            messagebox.showerror("Error", "No mission file found")
 
 if __name__ == "__main__":
     app = DashboardApp()

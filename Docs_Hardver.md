@@ -31,7 +31,7 @@ Dva dodatna IR senzora na prednjim bumperima.
 ### C. Smart Gripper (Hvataljka)
 Hvataljka je opremljena senzorima za detekciju predmeta.
 *   **Induktivni Senzor:** Pin 4 (Detektira metal/limenke).
-*   **Ultrazvučni Senzor:** Trig 38, Echo 39 (Mjeri udaljenost predmeta u hvataljci).
+*   **Nicla Vision TOF:** Integrirani senzor udaljenosti na kameri. **Neophodan** za detekciju predmeta u hvataljci (< 5cm preciznost).
 
 ### D. IMU (Inercijska Mjerna Jedinica)
 **LSM9DS1** senzor spojen putem I2C sabirnice.
