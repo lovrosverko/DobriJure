@@ -1,0 +1,5 @@
+--- Čekanje Poteza ---
+ARM:Dostava_2
+ARM:Spremi_2
+ARM:Uzmi_Limenka
+
