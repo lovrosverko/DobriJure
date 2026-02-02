@@ -27,8 +27,8 @@ Prije korištenja bilo kojeg taba, potrebno je uspostaviti vezu s robotom.
 Ovaj tab služi za fino podešavanje parametara robota bez potrebe za recompajliranjem koda.
 
 > [!TIP]
-> **Slike/dashboard_tab1.png**
-> *(Ovdje ubaci screenshot taba Kalibracija)*
+> ![Tab Kalibracija](/c:/Users/lovro/Documents/Moj%20Python/autonomniBot/slike/tabKalibracija.png)
+> *(Screenshot taba Kalibracija)*
 
 ### Funkcionalnosti:
 *   **PID Config**: Unos Kp, Ki, Kd konstanti za regulaciju smjera.
@@ -46,8 +46,8 @@ Ovaj tab služi za fino podešavanje parametara robota bez potrebe za recompajli
 Glavni tab za ručnu vožnju i snimanje rute ("Teach & Repeat").
 
 > [!TIP]
-> **Slike/dashboard_tab2.png**
-> *(Ovdje ubaci screenshot taba Učenje)*
+> ![Tab Učenje](/c:/Users/lovro/Documents/Moj%20Python/autonomniBot/slike/tabManualno.png)
+> *(Screenshot taba Učenje)*
 
 ### Kontrole:
 *   **Tipkovnica (Numpad)**:
@@ -68,8 +68,8 @@ Glavni tab za ručnu vožnju i snimanje rute ("Teach & Repeat").
 Izvršavanje prethodno snimljene misije.
 
 > [!TIP]
-> **Slike/dashboard_tab3.png**
-> *(Ovdje ubaci screenshot taba Autonomno)*
+> ![Tab Autonomno](/c:/Users/lovro/Documents/Moj%20Python/autonomniBot/slike/tabAutonomno.png)
+> *(Screenshot taba Autonomno)*
 
 ### Proces:
 1.  **Učitaj Misiju**: Učitava `misija.txt` u prozor za pregled.
