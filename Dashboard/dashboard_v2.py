@@ -11,6 +11,8 @@ from PIL import Image, ImageTk
 from io import BytesIO
 import os
 
+import socket
+
 # Configuration
 DEFAULT_IP = "192.168.0.7"
 
@@ -105,6 +107,36 @@ class RobotController:
             except Exception as e:
                 print(f"TX Fail: {e}")
 
+class WiFiStatusChecker:
+    def __init__(self, app, ip, interval=2.0):
+        self.app = app
+        self.ip = ip
+        self.interval = interval
+        self.running = False
+        self.thread = None
+
+    def start(self):
+        if not self.running:
+            self.running = True
+            self.thread = threading.Thread(target=self.loop, daemon=True)
+            self.thread.start()
+
+    def loop(self):
+        while self.running:
+            status = False
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1.0)
+                result = sock.connect_ex((self.ip, 8080))
+                if result == 0:
+                    status = True
+                sock.close()
+            except:
+                status = False
+            
+            self.app.update_wifi_status(status)
+            time.sleep(self.interval)
+
 class MJPEGViewer(ctk.CTkLabel):
     def __init__(self, master, url, **kwargs):
         super().__init__(master, text="Waiting for Stream...", **kwargs)
@@ -145,13 +177,11 @@ class MJPEGViewer(ctk.CTkLabel):
                                 photo = ctk.CTkImage(image.resize((320, 240)), size=(320, 240))
                                 self.configure(image=photo, text="")
                             except Exception as e:
-                                print(f"Frame Decode Error: {e}")
                                 pass
                 else:
                     self.configure(text=f"Status: {stream.status_code}")
                     time.sleep(1)
             except Exception as e:
-                # print(f"Stream Error: {e}") # Reduce spam
                 self.configure(text=f"Reconnecting...")
                 time.sleep(1) # Wait before retry
 
@@ -206,6 +236,10 @@ class DashboardApp(ctk.CTk):
         self.setup_manual_tab()
         self.setup_auto_tab()
         
+        # WiFi Checker
+        self.wifi_checker = WiFiStatusChecker(self, DEFAULT_IP)
+        self.wifi_checker.start()
+
         # Hooks
         self.robot.on_telemetry_callback = self.update_telemetry
         self.ui_updater()
@@ -278,10 +312,22 @@ class DashboardApp(ctk.CTk):
         # --- COLUMN 2: VIZIJA ---
         ctk.CTkLabel(col2, text="Kamera & Boje", font=("Arial", 16, "bold")).pack(pady=5)
         
+        # Nicla WiFi Status (Calibration Tab)
+        self.wifi_status_frame = ctk.CTkFrame(col2, fg_color="transparent")
+        self.wifi_status_frame.pack(pady=2)
+        self.lbl_wifi_led = ctk.CTkLabel(self.wifi_status_frame, text="●", font=("Arial", 24), text_color="red")
+        self.lbl_wifi_led.pack(side="left", padx=2)
+        self.lbl_wifi_text = ctk.CTkLabel(self.wifi_status_frame, text=f"WiFi Disconnected ({DEFAULT_IP})")
+        self.lbl_wifi_text.pack(side="left", padx=2)
+
         # Video Stream 
         self.video_viewer = MJPEGViewer(col2, "", width=320, height=240, fg_color="black")
         self.video_viewer.pack(pady=5)
-        ctk.CTkButton(col2, text="Start Stream", command=self.start_video_stream).pack(pady=5)
+        # Button Row for Stream
+        btn_row_calib = ctk.CTkFrame(col2, fg_color="transparent")
+        btn_row_calib.pack(pady=5)
+        ctk.CTkButton(btn_row_calib, text="Start Stream", command=self.start_video_stream).pack(side="left", padx=2)
+        ctk.CTkButton(btn_row_calib, text="Prekini Stream", fg_color="red", command=self.stop_calibration_stream).pack(side="left", padx=2)
         
         # Color Sliders
         ctk.CTkLabel(col2, text="Kalibracija Boja").pack()
@@ -303,7 +349,7 @@ class DashboardApp(ctk.CTk):
             entry.grid(row=i//2, column=(i%2)*2+1, padx=2)
             entry.insert(0, str(lab_defaults[i]))
             self.lab_vars[label] = entry
-
+            
         ctk.CTkButton(col2, text="Pošalji Boje (SET)", command=self.send_color).pack(pady=5)
         
         # --- COLUMN 3: ROBOTSKA RUKA ---
@@ -382,6 +428,37 @@ class DashboardApp(ctk.CTk):
             self.robot.send_command(cmd)
         except Exception as e:
             messagebox.showerror("Error", f"Invalid Values: {e}")
+
+    def start_video_stream(self):
+        ip = self.entry_ip.get()
+        # Update Wifi Checker IP just in case
+        self.wifi_checker.ip = ip 
+        # Ensure URL is set (in case IP changed)
+        self.video_viewer.url = f"http://{ip}:8080"
+        self.video_viewer.stop()
+        self.video_viewer.start()
+
+    def stop_calibration_stream(self):
+        self.video_viewer.stop()
+        self.video_viewer.configure(image=None, text="Stream Stopped")
+
+    def stop_auto_stream(self):
+        self.stream_viewer.stop()
+        self.stream_viewer.configure(image=None, text="Stream Stopped")
+
+    def update_wifi_status(self, is_online):
+         color = "green" if is_online else "red"
+         text = f"WiFi Connected ({self.wifi_checker.ip})" if is_online else f"WiFi Disconnected ({self.wifi_checker.ip})"
+         
+         # Update Calibration Tab
+         if hasattr(self, 'lbl_wifi_led'):
+             self.lbl_wifi_led.configure(text_color=color)
+             self.lbl_wifi_text.configure(text=text)
+             
+         # Update Auto Tab
+         if hasattr(self, 'lbl_auto_wifi_led'):
+             self.lbl_auto_wifi_led.configure(text_color=color)
+             self.lbl_auto_wifi_text.configure(text=text)
 
     def setup_manual_tab(self):
         frame = self.tab_manual
@@ -523,10 +600,23 @@ class DashboardApp(ctk.CTk):
         # --- LEFT: Stream & Telemetry ---
         ctk.CTkLabel(left_col, text="Kamera Uživo", font=("Arial", 16, "bold")).pack(pady=5)
         
+        # Nicla WiFi Status (Auto Tab)
+        self.wifi_auto_frame = ctk.CTkFrame(left_col, fg_color="transparent")
+        self.wifi_auto_frame.pack(pady=2)
+        self.lbl_auto_wifi_led = ctk.CTkLabel(self.wifi_auto_frame, text="●", font=("Arial", 24), text_color="red")
+        self.lbl_auto_wifi_led.pack(side="left", padx=2)
+        self.lbl_auto_wifi_text = ctk.CTkLabel(self.wifi_auto_frame, text="WiFi Disconnected")
+        self.lbl_auto_wifi_text.pack(side="left", padx=2)
+
         # MJPEG Viewer
         self.stream_viewer = MJPEGViewer(left_col, url=f"http://{DEFAULT_IP}:8080", width=400, height=300)
         self.stream_viewer.pack(pady=5)
-        ctk.CTkButton(left_col, text="Osvježi Stream (IP)", command=self.refresh_stream).pack(pady=2)
+        
+        # Auto Stream Buttons
+        btn_row_auto = ctk.CTkFrame(left_col, fg_color="transparent")
+        btn_row_auto.pack(pady=2)
+        ctk.CTkButton(btn_row_auto, text="Osvježi Stream (IP)", command=self.refresh_stream).pack(side="left", padx=2)
+        ctk.CTkButton(btn_row_auto, text="Prekini Stream", fg_color="red", command=self.stop_auto_stream).pack(side="left", padx=2)
 
         ctk.CTkLabel(left_col, text="--- Telemetrija ---").pack(pady=10)
         self.lbl_auto_dist = ctk.CTkLabel(left_col, text="Distance: 0.0 cm")

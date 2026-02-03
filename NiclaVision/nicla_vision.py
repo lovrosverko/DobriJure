@@ -62,33 +62,43 @@ uart.init(115200, bits=8, parity=None, stop=1)
 clock = time.clock()
 
 # --- Wi-Fi Main ---
-print("Trying to connect... (This may take a while)...")
+print("Initializing WiFi...")
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
-wlan.connect(SSID, KEY)
 
-# Pokusaj spajanja (Timeout 10s)
-start_connect = time.time()
 while not wlan.isconnected():
-    time.sleep_ms(100)
-    if time.time() - start_connect > 10:
-        print("WiFi connect failed. Continuing without WiFi.")
-        break
+    try:
+        print(f"Connecting to {SSID}...")
+        wlan.connect(SSID, KEY)
+        
+        # Wait for connection (timeout 10s locally)
+        start = time.time()
+        while not wlan.isconnected():
+            time.sleep_ms(500)
+            if time.time() - start > 10:
+                print("Connection timeout.")
+                break
+        
+        if wlan.isconnected():
+            break
+            
+        print("Retrying in 2 seconds...")
+        time.sleep(2)
+    except Exception as e:
+        print(f"WiFi Error: {e}")
+        time.sleep(2)
 
-if wlan.isconnected():
-    print("WiFi Connected. IP:", wlan.ifconfig()[0])
-    led_green.on()
-    time.sleep_ms(500)
-    led_green.off()
-    
-    # Server Socket
-    s = usocket.socket(usocket.AF_INET, usocket.SOCK_STREAM)
-    s.bind((HOST, PORT))
-    s.listen(1)
-    s.settimeout(0.0) # Non-blocking accept
-    print("MJPEG Streamer running on port 80")
-else:
-    s = None
+print("WiFi Connected. IP:", wlan.ifconfig()[0])
+led_blue.on()
+time.sleep_ms(500)
+led_blue.off()
+
+# Server Socket
+s = usocket.socket(usocket.AF_INET, usocket.SOCK_STREAM)
+s.bind((HOST, PORT))
+s.listen(1)
+s.settimeout(0.0) # Non-blocking accept
+print("MJPEG Streamer running on port", PORT)
 
 client_socket = None
 
