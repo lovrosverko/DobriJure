@@ -6,8 +6,8 @@ import sensor, image, time, pyb, network, usocket, sys
 from pyb import UART, LED
 
 # --- Wi-Fi Konfiguracija ---
-SSID = "Byte Me"
-KEY  = "forzafiume1987!"
+SSID = "********" // upisati WiFi SSID
+KEY  = "********" // upisati password
 HOST = '' 
 PORT = 8080
 
