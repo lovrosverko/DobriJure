@@ -22,6 +22,12 @@ void azurirajVision();
 String dohvatiZadnjiQR();
 
 /**
+ * Vraća navigacijsku grešku s kamere (-1.0 do 1.0).
+ * -1.0 = Linija skroz lijevo, 1.0 = Linija skroz desno.
+ */
+float dohvatiVisionError();
+
+/**
  * Briše zadnji pročitani QR kod (npr. nakon obrade).
  */
 void obrisiZadnjiQR();

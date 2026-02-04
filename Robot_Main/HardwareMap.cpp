@@ -42,12 +42,11 @@ void inicijalizirajHardware() {
     pinMode(PIN_ENC_R_A, INPUT_PULLUP);
     pinMode(PIN_ENC_R_B, INPUT_PULLUP);
 
-    // --- Senzori Linije ---
-    pinMode(PIN_SENS_LINE_LL, INPUT);
-    pinMode(PIN_SENS_LINE_L,  INPUT);
-    pinMode(PIN_SENS_LINE_C,  INPUT);
-    pinMode(PIN_SENS_LINE_R,  INPUT);
-    pinMode(PIN_SENS_LINE_RR, INPUT);
+    // --- Senzori Linije (Stari niz uklonjen) ---
+    // A0 i A1 se koriste za Lane Assist (Analogni), ne trebaju pinMode INPUT za analogRead,
+    // ali za svaki slučaj (neki MCU traže):
+    pinMode(PIN_IR_LIJEVI, INPUT);
+    pinMode(PIN_IR_DESNI,  INPUT);
 
     // --- Ultrazvučni Senzori ---
     // Prednji
@@ -68,8 +67,7 @@ void inicijalizirajHardware() {
     pinMode(PIN_ULTRAZVUK_GRIPPER_ECHO, INPUT);
 
     // --- Lane Assist ---
-    pinMode(PIN_IR_LIJEVI, INPUT);
-    pinMode(PIN_IR_DESNI,  INPUT);
+    // Inicijalizirano gore (A0, A1)
 
     // --- Ostalo ---
     pinMode(PIN_INDUCTIVE_SENS, INPUT_PULLUP); // Pretpostavka open-collector ili slično

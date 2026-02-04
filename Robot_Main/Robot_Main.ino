@@ -18,6 +18,8 @@
 #include "Enkoderi.h"
 #include "IMU.h"
 #include "Ultrazvuk.h"
+#include "Vision.h" // Dodano
+#include <ArduinoJson.h>
 #include <ArduinoJson.h>
 #include <EEPROM.h>
 
@@ -150,8 +152,10 @@ void setup() {
 void loop() {
     // --- 1. AŽURIRANJE PODSUSTAVA ---
     ruka.azuriraj();
-    azurirajKretanje(); // Ovdje je i Lane Assist!
+    ruka.azuriraj();
+    azurirajKretanje(); // Ovdje je Lane Assist & Fusion!
     azurirajIMU();
+    azurirajVision();   // Procesiraj poruke s kamere
     
     // --- TELEMETRIJA (10Hz) ---
     static unsigned long zadnjaTelemetrija = 0;
@@ -215,19 +219,13 @@ void loop() {
     checkSerial(&Serial2);
     
     // Provjeri odgovor s Kamere i proslijedi PC-u (Debug)
-    if (Serial3.available()) {
-        String camMsg = Serial3.readStringUntil('\n');
-        // Format: "OBJ:BOCA,167,4000" ili "QR:Boca=D1"
-        // Ako je OBJ, to koristimo za logiku. 
-        // Takodjer saljemo na Dashboard de skuzi da kamera radi.
-        Serial.println("CAM>" + camMsg); 
-        Serial2.println("CAM>" + camMsg); 
-        
-        // Parsiranje OBJ
-        if (camMsg.startsWith("OBJ:")) {
-            // ... (logika za pracenje)
-        }
-    }
+    // Ovo je sada riješeno unutar azurirajVision() koji parsira QR i Error.
+    // Ali zelimo i dalje prosljedjivati RAW poruke na Bluetooth radi debuga?
+    // Vision.cpp radi print na Serial, možemo dodati Serial2.
+    // Za sad, azurirajVision() cita Serial3 i prazni buffer, pa ovaj blok ispod
+    // vise nece uhvatiti nista jer je buffer prazan.
+    // Moramo modificirati Vision.cpp ako zelimo prosljedjivanje ili vjerovati logici.
+    // Ostavljamo ovaj blok prazan ili zakomentiran.
 }
 
 // --- TELEMETRIJA & PARSER ---

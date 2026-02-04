@@ -37,16 +37,9 @@
 #define PIN_VISION_RX 15
 #define PIN_VISION_TX 14
 
-// --- SENZORI PUTA (IR Array - 5 kanala) ---
-#define PIN_SENS_LINE_LL A4 // Skroz lijevo
-#define PIN_SENS_LINE_L  A3 // Lijevo
-#define PIN_SENS_LINE_C  A2 // Sredina
-#define PIN_SENS_LINE_R  A1 // Desno
-#define PIN_SENS_LINE_RR A0 // Skroz desno
-
-// --- LANE ASSIST (Dodatni IR na bumperima) ---
-#define PIN_IR_LIJEVI 48    // Digital Input (lijevi bumper)
-#define PIN_IR_DESNI  49    // Digital Input (desni bumper)
+// --- LANE ASSIST (Analogni IR na bumperima) ---
+#define PIN_IR_LIJEVI A0    // Analog Input (lijevi bumper)
+#define PIN_IR_DESNI  A1    // Analog Input (desni bumper)
 
 // --- ULTRAZVUČNI SENZORI (HC-SR04) ---
 // Prednji
