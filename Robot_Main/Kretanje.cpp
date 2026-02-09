@@ -16,10 +16,7 @@
 #include "Enkoderi.h"
 #include "IMU.h"
 
-// --- PID Parametri ---
-float Kp = 35.0;
-float Ki = 0.0;
-float Kd = 15.0;
+
 // --- PID Parametri (i Fusion koeficijenti) ---
 float Kp = 35.0; // Zadržano za kompatibilnost ako zatreba
 float Ki = 0.0;

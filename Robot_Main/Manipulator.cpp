@@ -91,11 +91,11 @@ void Manipulator::postaviUVozaPoziciju() {
     postaviKut(KANAL_BAZA, KUT_POZA_VOZNJA_BAZA);
     postaviKut(KANAL_RAME, KUT_POZA_VOZNJA_RAME);
     postaviKut(KANAL_LAKAT, KUT_POZA_VOZNJA_LAKAT);
-    postaviKut(KANAL_ZGLOB, KUT_POZA_VOZNJA_ZGLOB);
+    postaviKut(KANAL_ZGLOB_NAGIB, KUT_POZA_VOZNJA_ZGLOB);
     
     // Ostali zglobovi po potrebi (Rotacija sace, Hvat)
     // Neka rotacija sake bude ravna (90)
-    postaviKut(KANAL_ROT, 90.0);
+    postaviKut(KANAL_ZGLOB_ROT, 90.0);
     // Hvat neka ostane kakav je ili ga zatvorimo?
     // Bolje zatvoriti da ne zapinje.
     postaviKut(KANAL_HVATALJKA, 90.0); 
@@ -216,8 +216,8 @@ void Manipulator::azuriraj() {
         case STANJE_POVRATAK: 
             trenutnoStanje = STANJE_MIRUJE; 
             break;
-        case STANJE_HVAITANJE_S_KROVA: 
-             trenutnoStanje = STANJE_SEK_PRIPREMA; // Redirekcija
-             break;
+        // case STANJE_HVAITANJE_S_KROVA: 
+        //      trenutnoStanje = STANJE_SEK_PRIPREMA; // Redirekcija
+        //      break;
     }
 }
