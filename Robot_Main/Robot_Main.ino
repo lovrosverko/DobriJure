@@ -15,6 +15,7 @@
 #include "HardwareMap.h"
 #include "Manipulator.h"
 #include "Kretanje.h"
+#include "Motori.h"
 #include "Enkoderi.h"
 #include "IMU.h"
 #include "Ultrazvuk.h"
@@ -75,13 +76,9 @@ const char* presetNames[] = {
 };
 
 // --- PROTOTIPOVI ---
-void izvrsiSmartStart() {
-    // Placeholder
-}
-
-void provjeriUdarac() {
-    // Placeholder
-}
+// --- PROTOTIPOVI ---
+void izvrsiSmartStart();
+void provjeriUdarac();
 
 // --- TELEMETRIJA ---
 // --- TELEMETRIJA ---
