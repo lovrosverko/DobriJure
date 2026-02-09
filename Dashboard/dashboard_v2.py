@@ -10,6 +10,7 @@ import json
 from PIL import Image, ImageTk
 from io import BytesIO
 import os
+import tkinter.filedialog as filedialog
 
 import socket
 
@@ -461,65 +462,149 @@ class DashboardApp(ctk.CTk):
              self.lbl_auto_wifi_text.configure(text=text)
 
     def setup_manual_tab(self):
-        frame = self.tab_manual
-        
-        # Grid layout: 2 Columns
-        left_col = ctk.CTkFrame(frame)
-        left_col.pack(side="left", fill="both", expand=True, padx=5, pady=5)
-        right_col = ctk.CTkFrame(frame)
-        right_col.pack(side="right", fill="both", expand=True, padx=5, pady=5)
-        
-        # --- LEFT: Telemetry & Controls ---
-        ctk.CTkLabel(left_col, text="Telemetrija Uživo", font=("Arial", 16, "bold")).pack(pady=5)
-        
-        # Telemetry Labels
-        self.lbl_dist = ctk.CTkLabel(left_col, text="Distance: 0.0 cm")
-        self.lbl_dist.pack()
-        self.lbl_enc = ctk.CTkLabel(left_col, text="Enc: L=0 R=0")
-        self.lbl_enc.pack()
-        self.lbl_arm = ctk.CTkLabel(left_col, text="Arm Preset: -")
-        self.lbl_arm.pack()
-        
-        ctk.CTkLabel(left_col, text="--- Senzori ---").pack(pady=(5,0))
-        self.lbl_us_fb = ctk.CTkLabel(left_col, text="Front: 0 | Back: 0")
-        self.lbl_us_fb.pack()
-        self.lbl_us_lr = ctk.CTkLabel(left_col, text="Left: 0 | Right: 0")
-        self.lbl_us_lr.pack()
-        self.lbl_induct = ctk.CTkLabel(left_col, text="Inductive: False", text_color="gray")
-        self.lbl_induct.pack()
-        
-        ctk.CTkLabel(left_col, text="--- Kontrole ---").pack(pady=(10,5))
-        
-        # Speed Control
-        f_spd = ctk.CTkFrame(left_col)
-        f_spd.pack(fill="x", padx=5, pady=2)
-        ctk.CTkLabel(f_spd, text="Brzina (+/-):").pack(side="left")
-        self.entry_man_speed = ctk.CTkEntry(f_spd, width=60)
-        self.entry_man_speed.pack(side="right", padx=5)
-        self.entry_man_speed.insert(0, str(self.manual_speed))
-        
-        # Arm Preset Selector for Manual Tab
-        ctk.CTkLabel(left_col, text="Ruka:").pack()
-        self.man_preset_combo = ctk.CTkComboBox(left_col, values=self.preset_names)
-        self.man_preset_combo.pack(pady=2)
-        ctk.CTkButton(left_col, text="Izvrši & Snimi Ruku", fg_color="blue", command=self.exec_record_arm).pack(pady=5)
-        
-        # Snapshot Button
-        ctk.CTkButton(left_col, text="📸 Uslikaj Sliku", command=self.take_snapshot).pack(pady=10)
-        self.lbl_snapshot_status = ctk.CTkLabel(left_col, text="")
-        self.lbl_snapshot_status.pack()
+        # NEW IMPLEMENTATION OF "Mission Planner"
+        self.tab_manual.grid_columnconfigure(0, weight=1) # Sidebar
+        self.tab_manual.grid_columnconfigure(1, weight=2) # Inspector
+        self.tab_manual.grid_columnconfigure(2, weight=2) # Editor
+        self.tab_manual.grid_rowconfigure(0, weight=1)
 
-        # --- RIGHT: Mission Recorder ---
-        ctk.CTkLabel(right_col, text="Snimač Misije (Numpad)", font=("Arial", 14)).pack(pady=5)
-        instr = "8/2/4/6 = Vozi | Space = Waypoint | Ruka = Gumb"
-        ctk.CTkLabel(right_col, text=instr, font=("Arial", 10)).pack()
+        # 1. Sidebar: Function Library
+        self.frame_sidebar = ctk.CTkFrame(self.tab_manual, width=180, corner_radius=0)
+        self.frame_sidebar.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
         
-        self.waypoints_list = ctk.CTkTextbox(right_col, width=400, height=300)
-        self.waypoints_list.pack(pady=10, fill="both", expand=True)
-        self.waypoints_list.insert("1.0", "--- Čekanje Poteza ---\n")
-        self.waypoints_list.configure(state="disabled") # Read only
+        ctk.CTkLabel(self.frame_sidebar, text="BIBLIOTEKA", font=("Arial", 16, "bold")).pack(pady=10)
+        
+        funcs = [
+            ("VOZI RAVNO", "straight"),
+            ("VOZI (L/D)", "move_dual"),
+            ("OKRENI (Spot)", "turn"),
+            ("SKRENI (Pivot)", "pivot"),
+            ("RUKA", "arm")
+        ]
+        
+        for lbl, cmd in funcs:
+            ctk.CTkButton(self.frame_sidebar, text=lbl, command=lambda c=cmd: self.load_inspector(c)).pack(pady=5, padx=10, fill="x")
 
-        ctk.CTkButton(right_col, text="Spremi Misiju (misija.txt)", command=self.save_mission).pack(pady=5)
+        # 2. Inspector
+        self.frame_inspector = ctk.CTkFrame(self.tab_manual, corner_radius=0)
+        self.frame_inspector.grid(row=0, column=1, sticky="nsew", padx=2, pady=2)
+        
+        ctk.CTkLabel(self.frame_inspector, text="INSPECTOR", font=("Arial", 16, "bold")).pack(pady=10)
+        
+        self.inspector_content = ctk.CTkFrame(self.frame_inspector, fg_color="transparent")
+        self.inspector_content.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        self.lbl_insp_info = ctk.CTkLabel(self.inspector_content, text="Odaberi funkciju...", text_color="gray")
+        self.lbl_insp_info.pack(pady=20)
+        
+        self.current_cmd_type = None
+        self.entry_params = {}
+
+        # 3. Editor
+        self.frame_editor = ctk.CTkFrame(self.tab_manual, corner_radius=0)
+        self.frame_editor.grid(row=0, column=2, sticky="nsew", padx=2, pady=2)
+        
+        ctk.CTkLabel(self.frame_editor, text="EDITOR MISIJE", font=("Arial", 16, "bold")).pack(pady=10)
+        
+        self.scroll_editor = ctk.CTkScrollableFrame(self.frame_editor, label_text="Redoslijed Izvođenja")
+        self.scroll_editor.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        frame_ed_ctrl = ctk.CTkFrame(self.frame_editor)
+        frame_ed_ctrl.pack(fill="x", padx=5, pady=5)
+        
+        ctk.CTkButton(frame_ed_ctrl, text="EKSPORTIRAJ (misija.txt)", command=self.save_mission, fg_color="green").pack(side="left", fill="x", expand=True, padx=2)
+        ctk.CTkButton(frame_ed_ctrl, text="OČISTI SVE", command=self.clear_mission, fg_color="red").pack(side="right", padx=2)
+
+        # Initialize Mission Steps
+        self.misija_koraci = []
+        
+    def load_inspector(self, cmd_type):
+        for widget in self.inspector_content.winfo_children():
+            widget.destroy()
+            
+        self.current_cmd_type = cmd_type
+        self.entry_params = {}
+        
+        ctk.CTkLabel(self.inspector_content, text=f"Funkcija: {cmd_type.upper()}", font=("Arial", 14, "bold"), text_color="cyan").pack(pady=5)
+        
+        if cmd_type == "straight":
+            self.add_param_input("Udaljenost (cm):", "val")
+        elif cmd_type == "move_dual":
+            self.add_param_input("Lijevi PWM:", "l")
+            self.add_param_input("Desni PWM:", "r")
+            self.add_param_input("Udaljenost (cm):", "dist")
+        elif cmd_type == "turn":
+            self.add_param_input("Kut (stupnjevi):", "val")
+        elif cmd_type == "pivot":
+            self.add_param_input("Kut (stupnjevi):", "val")
+            ctk.CTkLabel(self.inspector_content, text="Poz = Desno, Neg = Lijevo", font=("Arial", 10)).pack()
+        elif cmd_type == "arm":
+            ctk.CTkLabel(self.inspector_content, text="Pozicija Ruke:").pack(anchor="w", padx=10)
+            self.combo_arm = ctk.CTkOptionMenu(self.inspector_content, values=[
+                "BOCA", "KROV_1", "ODLAGANJE_D1", "ODLAGANJE_D2", "ODLAGANJE_D3", "HOME", "DIZANJE_SIGURNO"
+            ])
+            self.combo_arm.pack(fill="x", padx=10, pady=5)
+            self.entry_params["val"] = self.combo_arm
+
+        ctk.CTkButton(self.inspector_content, text="IZVRŠI I DODAJ", command=self.execute_and_add, height=40, font=("Arial", 14, "bold")).pack(pady=20, fill="x", padx=10)
+
+    def add_param_input(self, label_text, key):
+        ctk.CTkLabel(self.inspector_content, text=label_text).pack(anchor="w", padx=10)
+        entry = ctk.CTkEntry(self.inspector_content)
+        entry.pack(fill="x", padx=10, pady=5)
+        self.entry_params[key] = entry
+
+    def execute_and_add(self):
+        if not self.current_cmd_type: return
+        payload = {"cmd": self.current_cmd_type}
+        
+        try:
+            for key, widget in self.entry_params.items():
+                if isinstance(widget, ctk.CTkEntry):
+                    val_str = widget.get()
+                    if key in ["l", "r"]:
+                         payload[key] = int(val_str)
+                    else:
+                         try: payload[key] = float(val_str)
+                         except: payload[key] = val_str
+                elif isinstance(widget, ctk.CTkOptionMenu):
+                    payload[key] = widget.get()
+        except ValueError:
+            messagebox.showerror("Error", "Greska u brojevima!")
+            return
+
+        json_str = json.dumps(payload)
+        self.robot.send_command(json_str) # Send JSON
+        
+        self.misija_koraci.append(payload)
+        self.refresh_editor()
+
+    def refresh_editor(self):
+        for w in self.scroll_editor.winfo_children():
+            w.destroy()
+        for i, step in enumerate(self.misija_koraci):
+            f = ctk.CTkFrame(self.scroll_editor)
+            f.pack(fill="x", pady=2)
+            lbl = ctk.CTkLabel(f, text=f"{i+1}. {step['cmd']}", anchor="w", font=("Consolas", 12))
+            lbl.pack(side="left", padx=5)
+            ctk.CTkButton(f, text="X", width=30, fg_color="red", command=lambda idx=i: self.delete_step(idx)).pack(side="right", padx=5)
+            if i > 0: ctk.CTkButton(f, text="▲", width=30, command=lambda idx=i: self.move_step(idx, -1)).pack(side="right", padx=2)
+            if i < len(self.misija_koraci)-1: ctk.CTkButton(f, text="▼", width=30, command=lambda idx=i: self.move_step(idx, 1)).pack(side="right", padx=2)
+
+    def delete_step(self, index):
+        if 0 <= index < len(self.misija_koraci):
+            self.misija_koraci.pop(index)
+            self.refresh_editor()
+
+    def move_step(self, index, direction):
+        new_idx = index + direction
+        if 0 <= new_idx < len(self.misija_koraci):
+            self.misija_koraci[index], self.misija_koraci[new_idx] = self.misija_koraci[new_idx], self.misija_koraci[index]
+            self.refresh_editor()
+            
+    def clear_mission(self):
+        self.misija_koraci = []
+        self.refresh_editor()
 
     def update_telemetry(self, data):
         self.latest_telemetry = data
@@ -766,20 +851,31 @@ class DashboardApp(ctk.CTk):
 
     def save_mission(self):
         try:
-            with open("misija.txt", "w", encoding="utf-8") as f:
-                f.write(self.waypoints_list.get("1.0", "end"))
-                messagebox.showinfo("Saved", "Mission saved to misija.txt")
+            filename = filedialog.asksaveasfilename(defaultextension=".txt", initialfile="misija.txt")
+            if not filename: return
+            
+            with open(filename, "w", encoding="utf-8") as f:
+                for step in self.misija_koraci:
+                    f.write(json.dumps(step) + "\n")
+            messagebox.showinfo("Saved", f"Misija spremljena u {filename}")
         except Exception as e:
             messagebox.showerror("Error", f"Could not save: {e}")
 
     def load_mission(self):
         try:
-            with open("misija.txt", "r", encoding="utf-8") as f:
+            filename = filedialog.askopenfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+            if not filename: return
+            
+            with open(filename, "r", encoding="utf-8") as f:
                 content = f.read()
                 self.log_box.delete("1.0", "end")
                 self.log_box.insert("end", content)
-        except:
-            messagebox.showerror("Error", "No mission file found")
+            
+            # Optional: Display loaded filename in label if exists, or just log it
+            print(f"Loaded mission from {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not load: {e}")
 
 if __name__ == "__main__":
     app = DashboardApp()

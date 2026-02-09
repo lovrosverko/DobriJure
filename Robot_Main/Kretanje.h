@@ -15,7 +15,9 @@ enum StanjeKretanja {
     KRETANJE_IDLE,
     KRETANJE_RAVNO,
     KRETANJE_ROTACIJA,
-    KRETANJE_LINIJA
+    KRETANJE_LINIJA,
+    KRETANJE_PIVOT,
+    KRETANJE_DUAL
 };
 
 // PID Parametri - dostupni za tuniranje
@@ -53,6 +55,11 @@ void zapocniVoznju(float cm);
  * @param stupnjevi Pozitivno = Desno, Negativno = Lijevo.
  */
 void zapocniRotaciju(float stupnjevi);
+
+// --- NOVE P2.1 FUNKCIJE ---
+void straightDrive(float cm); // Wrapper za zapocniVoznju
+void pivotTurn(float kut);    // Okret oko jednog kotaca
+void differentialDrive(int l, int r, float dist); // Voznja po luku
 
 /**
  * Zaustavlja robota i resetira stanje u IDLE.

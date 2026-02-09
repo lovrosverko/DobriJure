@@ -169,6 +169,17 @@ void loop() {
         provjeriUdarac();
     }
 
+    // --- STATUS REPORT (DONE) ---
+    static bool bioUPokretu = false;
+    bool sadaUPokretu = jeUPokretu();
+    
+    if (bioUPokretu && !sadaUPokretu) {
+        // Upravo smo stali
+        Serial.println("{\"status\": \"DONE\"}");
+        Serial2.println("{\"status\": \"DONE\"}");
+    }
+    bioUPokretu = sadaUPokretu;
+
     // --- 3. GLAVNA LOGIKA (STATE MACHINE) ---
     switch (trenutnaFaza) {
         case FAZA_CEKANJE_STARTA:
@@ -228,174 +239,76 @@ void loop() {
     // Ostavljamo ovaj blok prazan ili zakomentiran.
 }
 
-// --- TELEMETRIJA & PARSER ---
+// --- TELEMETRIJA & PARSER (JSON) ---
 void checkSerial(Stream* stream) {
     if (stream->available()) {
         String msg = stream->readStringUntil('\n');
         msg.trim();
-        
-        // 1. SET Komanda (Boje) -> "SET:BOCA,30,100,..."
-        if (msg.startsWith("SET:")) {
-            // Parsiraj i spremi u config
-            // Format: SET:TIP,v1,v2,v3,v4,v5,v6
-            // Zbog slozenosti parsinga u C++, samo cemo proslijediti kameri,
-            // A ONDA (bitno) spremiti te vrijednosti ako zelimo persistence.
-            // Za MVP: Dashboard salje "SET:..." pa "SAVE".
-            // Ovdje bi trebali parsirati string da izvucemo brojke.
-            // Zbog ustede vremena, pretpostavimo da Dashboard salje tocno format
-            // i mi samo proslijedimo kameri.
-            // ALI, user zeli EEPROM. Moramo parsirati.
-            
-            // ... (Parsing logika - preskocena radi duzine, koristi sscanf ili indexOf)
-            // Za sada: Samo proslijedi.
-            
-            Serial3.println(msg); // Proslijedi kameri
-            stream->println("OK:SentToCam");
-            
-            // TODO: Implementirati parsiranje za EEPROM ako je nuzno sada.
-            // S obzirom na rokove, oslanjamo se na to da Dashboard ima "Save to File"
-            // pa moze ponovno poslati sve na startu.
-            // Ali robot bi trebao pamtiti...
-            // OK, dodajemo jednostavni parser za BOCA/LIMENKA/SPUZVA
-            
-            int idx = -1;
-            if (msg.indexOf("BOCA") > 0) idx = 0;
-            if (msg.indexOf("LIMENKA") > 0) idx = 1;
-            if (msg.indexOf("SPUZVA") > 0) idx = 2;
-            
-            if (idx >= 0) {
-                 // Parsiranje brojeva je tesko bez sscanf-a na Arduino Stringu na robustan nacin u malo linija.
-                 // Ostavljamo napomenu: "Save Calibration" na Dashboardu mora poslati sve SET naredbe?
-                 // Ne, user zeli da ROBOT pamti.
-                 // OK, ajmo probat sscanf.
-                 // char buf[64]; msg.toCharArray(buf, 64);
-                 // int v[6]; 
-                 // sscanf(buf, "SET:%*[^,],%d,%d,%d,%d,%d,%d", &v[0], &v[1],...);
-                 // To bi radilo.
-            }
-        }
-        // 2. Ručne kontrole
-        else if (msg.startsWith("MAN:")) {
-            // Format: MAN:CMD,SPEED
-            int p1 = msg.indexOf(':');
-            int p2 = msg.indexOf(',', p1+1);
-            String cmd = msg.substring(p1+1, p2);
-            int spd = msg.substring(p2+1).toInt();
-            
-            if (cmd == "FWD") { lijeviMotor(spd); desniMotor(spd); }
-            else if (cmd == "BCK") { lijeviMotor(-spd); desniMotor(-spd); }
-            else if (cmd == "LFT") { lijeviMotor(-spd); desniMotor(spd); }
-            else if (cmd == "RGT") { lijeviMotor(spd); desniMotor(-spd); }
-            // Diagonals (Curves)
-            else if (cmd == "FWDL") { lijeviMotor(spd/2); desniMotor(spd); }
-            else if (cmd == "FWDR") { lijeviMotor(spd); desniMotor(spd/2); }
-            else if (cmd == "BCKL") { lijeviMotor(-spd/2); desniMotor(-spd); }
-            else if (cmd == "BCKR") { lijeviMotor(-spd); desniMotor(-spd/2); }
-            else if (cmd == "STOP") { stani(); }
-            
-            // Note: Manual drive overrides PID state?
-            // Yes, direct motor control. Kretanje state should be IDLE or overriden.
-            // Ideally call zaustaviKretanje() first if PID was active.
-            // But simple motor control is fine for now.
-        }
-        else if (msg.startsWith("MOVE:")) {
-            int dist = msg.substring(5).toInt();
-            zapocniVoznju(dist);
-            stream->println("OK:Buying ticket " + String(dist));
-        }
-        else if (msg.startsWith("TURN:")) {
-            int deg = msg.substring(5).toInt();
-            zapocniRotaciju(deg);
-            stream->println("OK:Turning " + String(deg));
-        }
-        else if (msg.startsWith("PID:")) {
-            // PID:Kp,Ki,Kd
-            // Primjer: PID:35.0,0.0,15.0
-            int p1 = msg.indexOf(':');
-            int p2 = msg.indexOf(',', p1+1);
-            int p3 = msg.indexOf(',', p2+1);
-            
-            if (p1 > 0 && p2 > 0 && p3 > 0) {
-                config.kp = msg.substring(p1+1, p2).toFloat();
-                config.ki = msg.substring(p2+1, p3).toFloat();
-                config.kd = msg.substring(p3+1).toFloat();
-                
-                // Azuriraj globalne varijable (iz Kretanje.cpp)
-                extern float Kp, Ki, Kd;
-                Kp = config.kp;
-                Ki = config.ki;
-                Kd = config.kd;
-                
-                spremiKonfiguraciju();
-                stream->println("OK:PID Saved (Kp=" + String(Kp) + ")");
-            }
-        }
-        // 3. Modovi
-        else if (msg == "MODE:MANUAL") {
-            trenutnaFaza = FAZA_CEKANJE_STARTA;
-        }
-        else if (msg == "MODE:AUTO") {
-            trenutnaFaza = FAZA_SMART_START; // Ili load mission
-        }
-    }
-}
+        if (msg.length() == 0) return;
 
-        // 4. Napredna Kalibracija (Motori, Servo)
-        else if (msg.startsWith("SET_MOTOR:")) {
-            // Format: SET_MOTOR:pulses,speed
-            // Npr: SET_MOTOR:40.0,100
-            int p1 = msg.indexOf(':');
-            int p2 = msg.indexOf(',', p1+1);
-            if (p1 > 0 && p2 > 0) {
-                config.pulsesPerCm = msg.substring(p1+1, p2).toFloat();
-                config.baseSpeed = msg.substring(p2+1).toInt();
-                primjeniKonfiguraciju(); // Update global vars without reset
+        // Pokusaj parsirati JSON (doc je globalni StaticJsonDocument definiran gore)
+        DeserializationError error = deserializeJson(doc, msg);
+
+        if (!error) {
+            const char* cmd = doc["cmd"];
+            
+            if (strcmp(cmd, "straight") == 0) {
+                float val = doc["val"];
+                straightDrive(val);
+                stream->println("{\"status\": \"OK\"}");
+            }
+            else if (strcmp(cmd, "move_dual") == 0) {
+                int l = doc["l"];
+                int r = doc["r"];
+                float dist = doc["dist"];
+                differentialDrive(l, r, dist);
+                stream->println("{\"status\": \"OK\"}");
+            }
+            else if (strcmp(cmd, "turn") == 0) {
+                float val = doc["val"];
+                zapocniRotaciju(val);
+                stream->println("{\"status\": \"OK\"}");
+            }
+            else if (strcmp(cmd, "pivot") == 0) {
+                float val = doc["val"];
+                pivotTurn(val);
+                stream->println("{\"status\": \"OK\"}");
+            }
+            else if (strcmp(cmd, "arm") == 0) {
+                const char* val = doc["val"];
+                ruka.zapocniSekvencu(val); 
+                stream->println("{\"status\": \"OK\"}");
+            }
+            else if (strcmp(cmd, "manual") == 0) {
+                 int l = doc["l"];
+                 int r = doc["r"];
+                 lijeviMotor(l);
+                 desniMotor(r);
+            }
+            else if (strcmp(cmd, "stop") == 0) {
+                 zaustaviKretanje();
+                 stream->println("{\"status\": \"STOPPED\"}");
+                 trenutnaFaza = FAZA_CEKANJE_STARTA;
+            }
+            else if (strcmp(cmd, "set_pid") == 0) {
+                config.kp = doc["p"];
+                config.ki = doc["i"];
+                config.kd = doc["d"];
+                extern float Kp, Ki, Kd;
+                Kp = config.kp; Ki = config.ki; Kd = config.kd;
                 spremiKonfiguraciju();
-                stream->println("OK:Motor Config Saved");
+                stream->println("{\"status\": \"PID_SAVED\"}");
             }
-        }
-        else if (msg.startsWith("SERVO:")) {
-            // Manual Servo Control
-            // Format: SERVO:ch,angle
-            // Npr: SERVO:0,90.5
-            int p1 = msg.indexOf(':');
-            int p2 = msg.indexOf(',', p1+1);
-            if (p1 > 0 && p2 > 0) {
-                int ch = msg.substring(p1+1, p2).toInt();
-                float angle = msg.substring(p2+1).toFloat();
-                ruka.postaviKut(ch, angle);
-                stream->println("OK:Servo Moved");
+            else if (strcmp(cmd, "cal_imu") == 0) {
+                inicijalizirajIMU(); 
+                stream->println("{\"status\": \"IMU_CALIBRATED\"}");
             }
-        }
-        else if (msg.startsWith("SAVE_PRESET:")) {
-            // Format: SAVE_PRESET:index
-            // Index 0-14
-            int p1 = msg.indexOf(':');
-            if (p1 > 0) {
-                int idx = msg.substring(p1+1).toInt();
-                if (idx >= 0 && idx < 15) {
-                    // Dohvati trenutne kuteve OD RUKE
-                    // TODO: Moramo dodati metodu u Manipulator da vrati trenutne kuteve
-                    // Za sad hack: pretpostavljamo da ruka ima polje.
-                     for(int i=0; i<6; i++) {
-                        config.presets[idx].angles[i] = ruka.dohvatiKut(i); 
-                     }
-                     spremiKonfiguraciju();
-                     stream->println("OK:Preset " + String(idx) + " Saved");
-                }
+            else if (strcmp(cmd, "save_eeprom") == 0) {
+                spremiKonfiguraciju();
+                stream->println("{\"status\": \"SAVED\"}");
             }
-        }
-        else if (msg.startsWith("LOAD_PRESET:")) {
-             int p1 = msg.indexOf(':');
-             if (p1 > 0) {
-                 int idx = msg.substring(p1+1).toInt();
-                 if (idx >= 0 && idx < 15) {
-                     // Pošalji ruku na spremljenu poziciju
-                     for(int i=0; i<6; i++) {
-                         ruka.postaviKut(i, config.presets[idx].angles[i]);
-                     }
-                     stream->println("OK:Preset " + String(idx) + " Loaded");
-                 }
+             else if (strcmp(cmd, "get_pose") == 0) {
+                 Serial2.println("{\"pose_x\": 0, \"pose_y\": 0, \"pose_th\": 0}"); 
              }
         }
     }

@@ -40,8 +40,10 @@ float pocetnaOrijentacija = 0;
 long pocetniEncL = 0;
 long pocetniEncR = 0;
 
-// Kalibracija (treba precizno izmjeriti)
-float IMPULSA_PO_CM = 40.0; 
+// Kalibracija
+float IMPULSA_PO_CM = 40.0;
+int ciljniSpeedL = 0;
+int ciljniSpeedR = 0; 
 
 void postaviKonfigKretanja(float impulsaPoCm) {
     IMPULSA_PO_CM = impulsaPoCm;
@@ -81,6 +83,37 @@ void zapocniRotaciju(float stupnjevi) {
     // Ako zelimo rotirati za +90, a trenutno je 350, cilj je 440 -> 80.
     
     trenutnoStanjeKretanja = KRETANJE_ROTACIJA;
+}
+
+void straightDrive(float cm) {
+    zapocniVoznju(cm);
+}
+
+void pivotTurn(float kut) {
+    stani();
+    azurirajIMU();
+    delay(10);
+    azurirajIMU(); // Double check
+    
+    pocetnaOrijentacija = dohvatiYaw();
+    // Cilj je +kut od trenutnog
+    // Ovdje ne racunamo apsolutni cilj, nego cemo u loopu racunat diff
+    // Zapravo konzistentnije je apsolutni cilj.
+    ciljnaVrijednost = pocetnaOrijentacija + kut;
+    
+    trenutnoStanjeKretanja = KRETANJE_PIVOT;
+}
+
+void differentialDrive(int l, int r, float dist) {
+    resetirajEnkodere();
+    ciljniSpeedL = l;
+    ciljniSpeedR = r;
+    ciljnaVrijednost = dist * IMPULSA_PO_CM;
+    
+    trenutnoStanjeKretanja = KRETANJE_DUAL;
+    
+    lijeviMotor(l);
+    desniMotor(r);
 }
 
 void pokreniPracenjeLinije() {
@@ -202,6 +235,45 @@ void azurirajKretanje() {
              lijeviMotor(-brzinaOkreta);
              desniMotor(brzinaOkreta);
         }
+    }
+    else if (trenutnoStanjeKretanja == KRETANJE_PIVOT) {
+        azurirajIMU();
+        float trenutniYaw = dohvatiYaw();
+        float diff = normalizirajKut(ciljnaVrijednost - trenutniYaw);
+        
+        if (abs(diff) < 2.0) {
+            zaustaviKretanje();
+            return;
+        }
+        
+        int spd = 120; // Fiksna brzina za pivot
+        
+        // Pozitivan kut -> Desno -> Lijevi motor radi, desni stoji
+        if (diff > 0) {
+            lijeviMotor(spd);
+            desniMotor(0);
+        } else {
+            // Negativan kut -> Lijevo -> Desni motor radi, lijevi stoji
+            lijeviMotor(0);
+            desniMotor(spd);
+        }
+    }
+    else if (trenutnoStanjeKretanja == KRETANJE_DUAL) {
+        long l = abs(dohvatiLijeviEnkoder());
+        long r = abs(dohvatiDesniEnkoder());
+        
+        // Zaustavi kad BILO KOJI dosegne dist (zapravo prompt kaze "kada brži motor prijeđe").
+        // "brži motor" će prijeći veću put, pa on prije dođe do limita.
+        // Ergo: max(l, r) >= limit.
+        
+        if (l >= abs(ciljnaVrijednost) || r >= abs(ciljnaVrijednost)) {
+            zaustaviKretanje();
+            return;
+        }
+        
+        // Održavaj brzine (open loop)
+        lijeviMotor(ciljniSpeedL);
+        desniMotor(ciljniSpeedR);
     }
 
     // --- LANE ASSIST (Sigurnosni Override) ---
